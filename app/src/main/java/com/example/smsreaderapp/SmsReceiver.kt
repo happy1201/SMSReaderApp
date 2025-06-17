@@ -1,7 +1,3 @@
-// 📁 ExcelManager.kt (already created, no change needed)
-// Ensure it exists at: com/example/smsreaderapp/excel/ExcelManager.kt
-
-// 📁 Modified: SmsReceiver.kt
 package com.example.smsreaderapp
 
 import android.content.BroadcastReceiver
@@ -12,6 +8,7 @@ import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
 import com.example.smsreaderapp.excel.ExcelManager
+import com.example.smsreaderapp.model.Transaction
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,32 +41,47 @@ class SmsReceiver : BroadcastReceiver() {
                         Log.d("SmsReceiver", "SMS from: $sender")
                         Log.d("SmsReceiver", "Message: $body")
 
-                        // Parse the SMS if it contains financial transaction info
-                        if (body.contains("Rs.", ignoreCase = true)) {
+                        if (body.contains("Rs", ignoreCase = true)) {
                             val dateStr = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date(timestamp))
                             val amountRegex = Regex("(?i)Rs\\.?\\s?(\\d+[,.]?\\d*)")
                             val match = amountRegex.find(body)
-                            val amount = match?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: 0.0
+                            val amount = match?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: continue
 
-                            val category = "Transaction" // You can use NLP or keyword matching later
-                            val description = sender.take(20) // You can extract better info later
-                            val bank = if (body.contains("HDFC", true)) "HDFC" else if (body.contains("ICICI", true)) "ICICI" else "Unknown"
+                            // Category & Mode classification
+                            val type = if (
+                                body.contains("credited", ignoreCase = true) ||
+                                body.contains("received", ignoreCase = true)
+                            ) "Investment" else "Expenditure"
 
-                            Log.d("SmsReceiver", "Amount: $amount")
-                            Log.d("SmsReceiver", "Date: $dateStr")
-                            Log.d("SmsReceiver", "Category: $category")
-                            Log.d("SmsReceiver", "Description: $description")
-                            Log.d("SmsReceiver", "Bank: $bank")
+                            val category = when {
+                                body.contains("grocery", true) -> "Grocery"
+                                body.contains("food", true) || body.contains("cafe", true) -> "Food"
+                                body.contains("zomato", true) || body.contains("swiggy", true) -> "Food"
+                                body.contains("shopping", true) || body.contains("myntra", true) -> "Shopping"
+                                body.contains("fun", true) || body.contains("movie", true) -> "Fun Activities"
+                                else -> "Uncategorized"
+                            }
+
+                            val mode = when {
+                                body.contains("upi", true) -> "UPI"
+                                body.contains("ICICI", true) || body.contains("x1234", true) -> "ICICI Credit Card"
+                                body.contains("HDFC", true) || body.contains("x2882", true) -> "HDFC Credit Card"
+                                else -> "Unknown"
+                            }
+
+                            val transaction = Transaction(
+                                date = dateStr,
+                                sender = sender,
+                                amount = amount,
+                                category = category,
+                                mode = mode,
+                                type = type
+                            )
 
                             ExcelManager.createExcelFileIfNotExists(context)
-                            ExcelManager.addExpense(
-                                context = context,
-                                date = dateStr,
-                                category = category,
-                                description = description,
-                                amount = amount,
-                                bank = bank
-                            )
+                            ExcelManager.appendTransaction(context, transaction)
+
+                            Log.d("SmsReceiver", "Transaction written: $transaction")
                         }
                     }
 
