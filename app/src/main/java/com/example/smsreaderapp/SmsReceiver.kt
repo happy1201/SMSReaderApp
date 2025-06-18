@@ -41,7 +41,9 @@ class SmsReceiver : BroadcastReceiver() {
                         Log.d("SmsReceiver", "SMS from: $sender")
                         Log.d("SmsReceiver", "Message: $body")
 
-                        if (body.contains("Rs", ignoreCase = true)) {
+                        val isTxnMessage = TransactionalSmsFilter.isTransactionMessage(sender, body)
+                        Log.d("SmsReceiver", "Is Transactional Message: $isTxnMessage")
+                        if (isTxnMessage && body.contains("Rs", ignoreCase = true)) {
                             val dateStr = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date(timestamp))
                             val amountRegex = Regex("(?i)Rs\\.?\\s?(\\d+[,.]?\\d*)")
                             val match = amountRegex.find(body)
