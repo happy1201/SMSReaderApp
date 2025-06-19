@@ -3,24 +3,25 @@ package com.example.smsreaderapp.excel
 import android.content.Context
 import android.util.Log
 import com.example.smsreaderapp.model.Transaction
+import org.apache.poi.ss.usermodel.WorkbookFactory
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
-import java.io.*
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.time.YearMonth
 
-object ExcelManager {
+class ExcelManager(private val context: Context) {
 
-    private const val FILE_NAME = "Expense_Tracker_Khushal.xlsx"
-    private const val SHEET_NAME_EXPENSES = "Transactions"
+    private val FILE_NAME = "Expense_Tracker_Khushal.xlsx"
+    private val SHEET_NAME_EXPENSES = "Transactions"
 
-    fun getExcelFile(context: Context): File {
-        Log.d("ExcelManager", "getExcelFile called..")
-        return File(context.getExternalFilesDir(null), FILE_NAME)
-    }
+    private val excelFile: File
+        get() = File(context.getExternalFilesDir(null), FILE_NAME)
 
-    fun createExcelFileIfNotExists(context: Context) {
+    fun createExcelFileIfNotExists() {
         Log.d("ExcelManager", "createExcelFileIfNotExists called..")
 
-        val file = getExcelFile(context)
-        if (!file.exists()) {
+        if (!excelFile.exists()) {
             val workbook = XSSFWorkbook()
             val sheet = workbook.createSheet(SHEET_NAME_EXPENSES)
             val header = sheet.createRow(0)
@@ -32,21 +33,19 @@ object ExcelManager {
             header.createCell(4).setCellValue("Mode")
             header.createCell(5).setCellValue("Type")
 
-            FileOutputStream(file).use { workbook.write(it) }
+            FileOutputStream(excelFile).use { workbook.write(it) }
             workbook.close()
         }
     }
 
-    fun appendTransaction(context: Context, transaction: Transaction) {
+    fun appendTransaction(transaction: Transaction) {
         Log.d("ExcelManager", "appendTransaction called..")
 
-        val file = getExcelFile(context)
-
-        if (!file.exists()) {
-            createExcelFileIfNotExists(context)
+        if (!excelFile.exists()) {
+            createExcelFileIfNotExists()
         }
 
-        val fis = FileInputStream(file)
+        val fis = FileInputStream(excelFile)
         val workbook = XSSFWorkbook(fis)
         val sheet = workbook.getSheet(SHEET_NAME_EXPENSES) ?: workbook.createSheet(SHEET_NAME_EXPENSES)
         fis.close()
@@ -61,9 +60,54 @@ object ExcelManager {
         row.createCell(4).setCellValue(transaction.mode)
         row.createCell(5).setCellValue(transaction.type)
 
-        FileOutputStream(file).use { workbook.write(it) }
+        FileOutputStream(excelFile).use { workbook.write(it) }
         workbook.close()
 
         Log.d("ExcelManager", "Transaction saved to Excel at row $rowNum")
+    }
+
+    fun getCurrentMonthSpendByCategory(): Map<String, Double> {
+        Log.d("ExcelManager", "getCurrentMonthSpendByCategory called..")
+        val categoryTotals = mutableMapOf<String, Double>()
+
+        val defaultCategories = listOf("Grocery", "Food", "Fun Activities", "Shopping", "Others")
+        defaultCategories.forEach { categoryTotals[it] = 0.0 }
+
+        if (!excelFile.exists()) {
+            Log.d("ExcelManager", "No Excel file found.")
+            return categoryTotals
+        } else {
+            Log.d("ExcelManager", "Excel file found.")
+        }
+
+        val workbook = WorkbookFactory.create(FileInputStream(excelFile))
+        val sheet = workbook.getSheet(SHEET_NAME_EXPENSES)
+
+        val currentMonth = YearMonth.now()
+
+        for (row in sheet.drop(1)) { // Skip header row
+            val dateCell = row.getCell(0)
+            var categoryCell = row.getCell(3)
+            val amountCell = row.getCell(2)
+            if (categoryCell?.stringCellValue == "Uncategorized") {
+                categoryCell.setCellValue("Others")
+            }
+
+            val localDate = try {
+                dateCell?.localDateTimeCellValue?.toLocalDate()
+            } catch (e: Exception) {
+                null
+            }
+
+            val category = categoryCell?.stringCellValue?.trim() ?: continue
+            val amount = amountCell?.numericCellValue ?: continue
+
+            if (localDate != null && YearMonth.from(localDate) == currentMonth) {
+                categoryTotals[category] = categoryTotals.getOrDefault(category, 0.0) + amount
+            }
+        }
+
+        workbook.close()
+        return categoryTotals
     }
 }

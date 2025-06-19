@@ -7,6 +7,8 @@ import android.os.Build
 import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
+import androidx.compose.runtime.remember
+import com.example.smsreaderapp.email.EmailUtil
 import com.example.smsreaderapp.excel.ExcelManager
 import com.example.smsreaderapp.model.Transaction
 import java.text.SimpleDateFormat
@@ -80,8 +82,10 @@ class SmsReceiver : BroadcastReceiver() {
                                 type = type
                             )
 
-                            ExcelManager.createExcelFileIfNotExists(context)
-                            ExcelManager.appendTransaction(context, transaction)
+                            val excelManager = ExcelManager(context)
+
+                            excelManager.createExcelFileIfNotExists()
+                            excelManager.appendTransaction(transaction)
 
                             Log.d("SmsReceiver", "Transaction written: $transaction")
                         }

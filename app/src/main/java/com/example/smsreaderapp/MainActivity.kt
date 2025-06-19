@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -23,48 +24,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.smsreaderapp.email.EmailUtil
+import com.example.smsreaderapp.ui.screens.DashboardScreen
 import com.example.smsreaderapp.ui.theme.SMSReaderAppTheme
+import com.example.smsreaderapp.excel.ExcelManager
 
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val excelManager = ExcelManager(applicationContext)
+        var categoryMap = excelManager.getCurrentMonthSpendByCategory()
+        var totalSpent = categoryMap.values.sum()
 
-        enableEdgeToEdge()
-
+        Log.d("MainActivity", "Total Spent: $totalSpent")
         setContent {
-            SMSReaderAppTheme {
-
-                // 🔐 Step 1: Manage SMS permission
-                val smsPermission = Manifest.permission.RECEIVE_SMS
-                val permissionGranted = remember { mutableStateOf(false) }
-
-                val permissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    permissionGranted.value = isGranted
-                    Log.d("Permission", "RECEIVE_SMS granted? $isGranted")
-                }
-
-                // 🔃 Step 2: Launch permission request once on startup
-                LaunchedEffect(Unit) {
-                    permissionLauncher.launch(smsPermission)
-                }
-
-                // 🧪 Step 3: Test UI to reflect state
-                val latestSms = remember { mutableStateOf("Waiting for SMS...") }
-
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = if (permissionGranted.value) latestSms.value else "Permission not granted",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-
-                // New Button to Send Mail
-                val context = LocalContext.current
-                MainScreen(context)
-
+            MaterialTheme {
+                DashboardScreen(
+                    totalSpent = totalSpent,
+                    categoryMap = categoryMap,
+                    onSendEmail = {
+                        // TODO: Trigger email logic here
+                        val emailUtil = EmailUtil()
+                        emailUtil.sendEmailWithExcelAttachment(applicationContext)
+                    },
+                    onRefresh = {
+                        categoryMap = excelManager.getCurrentMonthSpendByCategory()
+                        totalSpent = categoryMap.values.sum()
+                    }
+                )
             }
         }
     }
